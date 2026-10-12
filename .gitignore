@@ -34,3 +34,10 @@ build/
 .aider*
 .ollamassist/
 scratch/
+
+### Private Study Materials, Logs & Personal Vault ###
+docs/CHAT_BACKUP.md
+docs/chat_backup_*.jsonl
+docs/JWT_MASTERY_GUIDE.md
+docs/SPRING_ARCHITECT_JWT_PLAYBOOK.md
+SESSION_SUMMARY.md
