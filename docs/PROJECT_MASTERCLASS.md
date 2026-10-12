@@ -39,7 +39,7 @@ Most developers begin their authentication journey with a tutorial:
 - No rate limiting, leaving the service open to brute-force attacks and denial-of-service.
 - No way to revoke a token when a user clicks "Logout".
 
-**`jwt-service-demo`** transforms this concept into a **hardened Identity & Access Management (IAM) Microservice** modeled after industry standards like Auth0, Keycloak, and Okta. It is decoupled, cryptographically sound, and resilient against modern attack vectors.
+**`auth-shield-service`** transforms this concept into a **hardened Identity & Access Management (IAM) Microservice** modeled after industry standards like Auth0, Keycloak, and Okta. It is decoupled, cryptographically sound, and resilient against modern attack vectors.
 
 ### Core Architectural Decisions
 1. **Decoupled Verification:** Other microservices verify user identity purely through mathematical signatures (RSA-2048 Public Key) without calling this database.
@@ -50,7 +50,7 @@ Most developers begin their authentication journey with a tutorial:
 
 ## 2. The 30,000-Foot Architecture & Request Journey
 
-When an HTTP request reaches `jwt-service-demo`, it navigates **4 distinct defensive perimeters** before reaching business logic:
+When an HTTP request reaches `auth-shield-service`, it navigates **4 distinct defensive perimeters** before reaching business logic:
 
 ```
                           ┌────────────────────────────────────────────────────────┐
@@ -119,13 +119,13 @@ Auth Service (Signs with SECRET)  ───►  Payment Service (Verifies with S
 If an attacker breaches the Payment Service, they steal `SECRET` and can now **forge valid tokens for the entire enterprise**, claiming to be an `ADMIN` or the CEO.
 
 #### The Solution: Asymmetric RSA-2048 (RS256)
-`jwt-service-demo` splits cryptography into two mathematically linked keys:
-1. **Private Key (2048-bit RSA, `private_key.pem`):** Kept strictly inside `jwt-service-demo`. Used exclusively to sign tokens.
+`auth-shield-service` splits cryptography into two mathematically linked keys:
+1. **Private Key (2048-bit RSA, `private_key.pem`):** Kept strictly inside `auth-shield-service`. Used exclusively to sign tokens.
 2. **Public Key (2048-bit RSA, `public_key.pem`):** Distributed to downstream microservices and frontend clients. Can only *verify* signatures; it cannot forge them.
 
 ```
        ┌────────────────────────┐
-       │   jwt-service-demo     │
+       │   auth-shield-service     │
        │ (Holds PRIVATE Key)    │
        └────────────────────────┘
                    │
@@ -142,7 +142,7 @@ If an attacker breaches the Payment Service, they steal `SECRET` and can now **f
 └──────────────────┘└──────────────────┘
 ```
 
-**Implementation:** [`RsaJwtService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/RsaJwtService.java) loads the keys using `PKCS8EncodedKeySpec` (private) and `X509EncodedKeySpec` (public).
+**Implementation:** [`RsaJwtService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/RsaJwtService.java) loads the keys using `PKCS8EncodedKeySpec` (private) and `X509EncodedKeySpec` (public).
 
 ---
 
@@ -152,7 +152,7 @@ If an attacker breaches the Payment Service, they steal `SECRET` and can now **f
 Rather than emailing public key certificates to other teams, standard microservices expose their public keys via **JSON Web Key Set (RFC 7517)**:
 `GET /.well-known/jwks.json`
 
-#### Example JSON Response from `jwt-service-demo`:
+#### Example JSON Response from `auth-shield-service`:
 ```json
 {
   "keys": [
@@ -169,7 +169,7 @@ Rather than emailing public key certificates to other teams, standard microservi
 ```
 Downstream microservices (Spring Cloud Gateway, Node.js, Python FastAPI) fetch this endpoint once at startup and cache the public key. When verifying tokens, they check the token's header `kid` (Key ID), look up the matching key from their cache, and verify the signature locally with zero database overhead.
 
-**Implementation:** [`JwksController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/JwksController.java).
+**Implementation:** [`JwksController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/JwksController.java).
 
 ---
 
@@ -195,7 +195,7 @@ public RoleHierarchy roleHierarchy() {
 - A `MANAGER` automatically has access to `MANAGER` and `USER` endpoints.
 - A `USER` only has access to `USER` endpoints.
 
-**Implementation:** [`SecurityConfig.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java) and [`HierarchicalAccessController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/HierarchicalAccessController.java).
+**Implementation:** [`SecurityConfig.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java) and [`HierarchicalAccessController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/HierarchicalAccessController.java).
 
 ---
 
@@ -229,7 +229,7 @@ Imagine each client IP has a physical bucket:
 #### Why Place Rate Limiting Before Spring Security?
 Spring Security performs BCrypt password hashing, database queries, and cryptographic signature verifications. These are **CPU-intensive**. If rate limiting sat *after* Spring Security, a bot could flood the server with invalid logins, maxing out CPU cores at 100%. By placing `RateLimitingFilter` at the very front of the servlet chain, unauthenticated flood traffic is dropped in sub-milliseconds without touching CPU or database resources.
 
-**Implementation:** [`RateLimitingFilter.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingFilter.java) and [`RateLimitingService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingService.java).
+**Implementation:** [`RateLimitingFilter.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingFilter.java) and [`RateLimitingService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingService.java).
 
 ---
 
@@ -251,7 +251,7 @@ If an attacker attempts to use an **already revoked token** (a replay attack):
 3. The service triggers `revokeAllByUser(user)`, **killing every active session for that user across all devices**.
 4. Both the attacker and the legitimate user are locked out, requiring full re-authentication and neutralizing the theft.
 
-**Implementation:** [`RefreshTokenService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/service/RefreshTokenService.java).
+**Implementation:** [`RefreshTokenService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/service/RefreshTokenService.java).
 
 ---
 
@@ -274,7 +274,7 @@ JWTs are stateless; once signed, they are self-contained. When a user clicks "Lo
    ```
 4. Once the token's expiration timestamp passes naturally, it is evicted from memory. Memory consumption remains bounded and small.
 
-**Implementation:** [`TokenBlacklistService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/TokenBlacklistService.java) and [`JwtAuthenticationFilter.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationFilter.java).
+**Implementation:** [`TokenBlacklistService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/TokenBlacklistService.java) and [`JwtAuthenticationFilter.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationFilter.java).
 
 ---
 
@@ -291,14 +291,14 @@ An attacker using a botnet of 10,000 compromised residential IP addresses can se
 3. For the next 15 minutes, authentication attempts are blocked immediately without evaluating passwords.
 4. Auto-Unlock: Once 15 minutes have passed, the user record automatically resets on the next attempt.
 
-**Implementation:** [`UserService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/service/UserService.java#L70-L135) and [`AccountLockedException.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/exception/AccountLockedException.java).
+**Implementation:** [`UserService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/service/UserService.java#L70-L135) and [`AccountLockedException.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/exception/AccountLockedException.java).
 
 ---
 
 ### Pillar 8: OWASP Web Hardening & ASVS Password Security
 
 #### OWASP ASVS Password Policy
-To comply with OWASP Application Security Verification Standard (ASVS 4.0), [`RegisterRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/RegisterRequest.java) enforces:
+To comply with OWASP Application Security Verification Standard (ASVS 4.0), [`RegisterRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/RegisterRequest.java) enforces:
 - Minimum 8 characters.
 - At least 1 uppercase letter (`A-Z`).
 - At least 1 lowercase letter (`a-z`).
@@ -312,7 +312,7 @@ To comply with OWASP Application Security Verification Standard (ASVS 4.0), [`Re
 - `X-Content-Type-Options: nosniff:` Prevents MIME-type sniffing exploits.
 - `Referrer-Policy: strict-origin-when-cross-origin:` Shields authorization credentials from leaking in referer headers.
 
-**Implementation:** [`SecurityConfig.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java#L140-L155).
+**Implementation:** [`SecurityConfig.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java#L140-L155).
 
 ---
 
@@ -343,7 +343,7 @@ Auditing is completely decoupled from business operations using Spring's `Applic
 5. `ROLE_UPDATED`: Tracks privilege escalations (Admin operations).
 6. `LOGOUT`: Records session termination.
 
-**Implementation:** [`SecurityAuditEvent.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEvent.java) and [`SecurityAuditEventListener.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEventListener.java).
+**Implementation:** [`SecurityAuditEvent.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEvent.java) and [`SecurityAuditEventListener.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEventListener.java).
 
 ---
 
@@ -364,7 +364,7 @@ $$\text{Code} = \text{HMAC-SHA1}(\text{Base32 Secret}, T) \pmod{10^6}$$
    - The server verifies the HMAC-SHA1 code (allowing $\pm 1$ time window for clock drift).
    - If valid, the server issues the full RS256 Access Token and Refresh Token!
 
-**Implementation:** [`TotpService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/mfa/TotpService.java) and [`AuthController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/AuthController.java#L460-L530).
+**Implementation:** [`TotpService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/mfa/TotpService.java) and [`AuthController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/AuthController.java#L460-L530).
 
 ---
 
@@ -374,41 +374,41 @@ Here is the complete roster of source files in `src/main/java`:
 
 | # | Package | File | Responsibility |
 | :---: | :--- | :--- | :--- |
-| **1** | `com.example.jwtservicedemo` | [`JwtServiceDemoApplication.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/JwtServiceDemoApplication.java) | Main entry point bootstrapping Spring Boot, JPA, and Security. |
-| **2** | `audit` | [`SecurityAuditEvent.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEvent.java) | Domain event extending `ApplicationEvent` carrying event type, username, status, and details. |
-| **3** | `audit` | [`SecurityAuditEventListener.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEventListener.java) | `@EventListener` component emitting SIEM logs and persisting to MySQL. |
-| **4** | `config` | [`ApplicationConfig.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/config/ApplicationConfig.java) | Provides infrastructure beans like `BCryptPasswordEncoder`. |
-| **5** | `config` | [`SecurityConfig.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java) | Master SecurityFilterChain: CORS, CSRF disable, RoleHierarchy, security headers, and endpoint permissions. |
-| **6** | `controller` | [`AuthController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/AuthController.java) | REST endpoints for register, login, refresh, logout, MFA setup/enable/verify, and audit querying. |
-| **7** | `controller` | [`HierarchicalAccessController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/HierarchicalAccessController.java) | Demo endpoints testing hierarchical RBAC (`/admin-only`, `/manager-area`, `/user-area`). |
-| **8** | `controller` | [`JwksController.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/controller/JwksController.java) | RFC 7517 endpoint (`/.well-known/jwks.json`) publishing the RSA Public Key. |
-| **9** | `dto` | [`AuthRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/AuthRequest.java) | Login request payload (`username`, `password`, optional `role`). |
-| **10**| `dto` | [`AuthResponse.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/AuthResponse.java) | Login response payload (`token`, `refreshToken`, `mfaRequired`, `tempToken`). |
-| **11**| `dto` | [`MfaLoginRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/MfaLoginRequest.java) | Step 2 payload (`tempToken`, `code`). |
-| **12**| `dto` | [`MfaSetupResponse.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/MfaSetupResponse.java) | Enrollment payload (`secret`, `otpAuthUri`, `qrCodeDataUrl`). |
-| **13**| `dto` | [`MfaVerifyRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/MfaVerifyRequest.java) | Enable/disable payload with 6-digit code. |
-| **14**| `dto` | [`RefreshTokenRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/RefreshTokenRequest.java) | Token refresh and logout payload (`refreshToken`). |
-| **15**| `dto` | [`RegisterRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/RegisterRequest.java) | User registration with OWASP ASVS regex password validation. |
-| **16**| `dto` | [`RoleUpdateRequest.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/dto/RoleUpdateRequest.java) | Admin role promotion payload (`role`). |
-| **17**| `exception` | [`AccountLockedException.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/exception/AccountLockedException.java) | Custom exception thrown when a user exceeds 5 failed login attempts. |
-| **18**| `exception` | [`GlobalExceptionHandler.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/exception/GlobalExceptionHandler.java) | `@RestControllerAdvice` mapping exceptions to HTTP status codes (e.g. 423 Locked). |
-| **19**| `jwt` | [`JwtAccessDeniedHandler.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/JwtAccessDeniedHandler.java) | Emits clean JSON responses for HTTP 403 Forbidden. |
-| **20**| `jwt` | [`JwtAuthenticationEntryPoint.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationEntryPoint.java) | Emits clean JSON responses for HTTP 401 Unauthorized. |
-| **21**| `jwt` | [`JwtAuthenticationFilter.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationFilter.java) | Intercepts HTTP requests, validates RSA token, checks blacklist, populates SecurityContext. |
-| **22**| `jwt` | [`JwtService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/JwtService.java) | Early symmetric HS256 service preserved for baseline reference. |
-| **23**| `jwt` | [`RsaJwtService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/RsaJwtService.java) | Asymmetric RS256 token engine (signing with Private Key, verifying with Public Key, temp tokens). |
-| **24**| `jwt` | [`TokenBlacklistService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/jwt/TokenBlacklistService.java) | In-memory token revocation cache for immediate logout invalidation. |
-| **25**| `mfa` | [`TotpService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/mfa/TotpService.java) | RFC 6238 TOTP computation (HMAC-SHA1, Base32 codec, ZXing QR generation). |
-| **26**| `model` | [`RefreshToken.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/model/RefreshToken.java) | JPA entity for refresh tokens (`token`, `expiryDate`, `revoked`, `replacedByToken`). |
-| **27**| `model` | [`SecurityAuditLog.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/model/SecurityAuditLog.java) | JPA entity for immutable audit logs (`eventType`, `username`, `status`, `details`, `timestamp`). |
-| **28**| `model` | [`User.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/model/User.java) | JPA entity for users (`username`, `password`, `role`, `failedAttempts`, `lockTime`, `mfaEnabled`, `mfaSecret`). |
-| **29**| `ratelimit` | [`RateLimitingFilter.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingFilter.java) | Servlet filter evaluating client IP token buckets, returning HTTP 429 on exhaustion. |
-| **30**| `ratelimit` | [`RateLimitingService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingService.java) | Caffeine-backed in-memory Bucket4j token bucket provider. |
-| **31**| `repository`| [`RefreshTokenRepository.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/repository/RefreshTokenRepository.java) | Spring Data JPA repository for refresh token persistence. |
-| **32**| `repository`| [`SecurityAuditLogRepository.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/repository/SecurityAuditLogRepository.java) | Spring Data JPA repository for audit history querying. |
-| **33**| `repository`| [`UserRepository.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/repository/UserRepository.java) | Spring Data JPA repository for user credentials and lockout state. |
-| **34**| `service` | [`RefreshTokenService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/service/RefreshTokenService.java) | Implements Refresh Token Rotation and Automatic Replay Breach Detection. |
-| **35**| `service` | [`UserService.java`](file:///D:/MicroServices_Study/jwt-service-demo/src/main/java/com/example/jwtservicedemo/service/UserService.java) | Manages BCrypt validation, account lockout rules, user registration, and MFA state. |
+| **1** | `com.example.jwtservicedemo` | [`JwtServiceDemoApplication.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/JwtServiceDemoApplication.java) | Main entry point bootstrapping Spring Boot, JPA, and Security. |
+| **2** | `audit` | [`SecurityAuditEvent.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEvent.java) | Domain event extending `ApplicationEvent` carrying event type, username, status, and details. |
+| **3** | `audit` | [`SecurityAuditEventListener.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/audit/SecurityAuditEventListener.java) | `@EventListener` component emitting SIEM logs and persisting to MySQL. |
+| **4** | `config` | [`ApplicationConfig.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/config/ApplicationConfig.java) | Provides infrastructure beans like `BCryptPasswordEncoder`. |
+| **5** | `config` | [`SecurityConfig.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/config/SecurityConfig.java) | Master SecurityFilterChain: CORS, CSRF disable, RoleHierarchy, security headers, and endpoint permissions. |
+| **6** | `controller` | [`AuthController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/AuthController.java) | REST endpoints for register, login, refresh, logout, MFA setup/enable/verify, and audit querying. |
+| **7** | `controller` | [`HierarchicalAccessController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/HierarchicalAccessController.java) | Demo endpoints testing hierarchical RBAC (`/admin-only`, `/manager-area`, `/user-area`). |
+| **8** | `controller` | [`JwksController.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/controller/JwksController.java) | RFC 7517 endpoint (`/.well-known/jwks.json`) publishing the RSA Public Key. |
+| **9** | `dto` | [`AuthRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/AuthRequest.java) | Login request payload (`username`, `password`, optional `role`). |
+| **10**| `dto` | [`AuthResponse.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/AuthResponse.java) | Login response payload (`token`, `refreshToken`, `mfaRequired`, `tempToken`). |
+| **11**| `dto` | [`MfaLoginRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/MfaLoginRequest.java) | Step 2 payload (`tempToken`, `code`). |
+| **12**| `dto` | [`MfaSetupResponse.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/MfaSetupResponse.java) | Enrollment payload (`secret`, `otpAuthUri`, `qrCodeDataUrl`). |
+| **13**| `dto` | [`MfaVerifyRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/MfaVerifyRequest.java) | Enable/disable payload with 6-digit code. |
+| **14**| `dto` | [`RefreshTokenRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/RefreshTokenRequest.java) | Token refresh and logout payload (`refreshToken`). |
+| **15**| `dto` | [`RegisterRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/RegisterRequest.java) | User registration with OWASP ASVS regex password validation. |
+| **16**| `dto` | [`RoleUpdateRequest.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/dto/RoleUpdateRequest.java) | Admin role promotion payload (`role`). |
+| **17**| `exception` | [`AccountLockedException.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/exception/AccountLockedException.java) | Custom exception thrown when a user exceeds 5 failed login attempts. |
+| **18**| `exception` | [`GlobalExceptionHandler.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/exception/GlobalExceptionHandler.java) | `@RestControllerAdvice` mapping exceptions to HTTP status codes (e.g. 423 Locked). |
+| **19**| `jwt` | [`JwtAccessDeniedHandler.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/JwtAccessDeniedHandler.java) | Emits clean JSON responses for HTTP 403 Forbidden. |
+| **20**| `jwt` | [`JwtAuthenticationEntryPoint.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationEntryPoint.java) | Emits clean JSON responses for HTTP 401 Unauthorized. |
+| **21**| `jwt` | [`JwtAuthenticationFilter.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/JwtAuthenticationFilter.java) | Intercepts HTTP requests, validates RSA token, checks blacklist, populates SecurityContext. |
+| **22**| `jwt` | [`JwtService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/JwtService.java) | Early symmetric HS256 service preserved for baseline reference. |
+| **23**| `jwt` | [`RsaJwtService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/RsaJwtService.java) | Asymmetric RS256 token engine (signing with Private Key, verifying with Public Key, temp tokens). |
+| **24**| `jwt` | [`TokenBlacklistService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/jwt/TokenBlacklistService.java) | In-memory token revocation cache for immediate logout invalidation. |
+| **25**| `mfa` | [`TotpService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/mfa/TotpService.java) | RFC 6238 TOTP computation (HMAC-SHA1, Base32 codec, ZXing QR generation). |
+| **26**| `model` | [`RefreshToken.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/model/RefreshToken.java) | JPA entity for refresh tokens (`token`, `expiryDate`, `revoked`, `replacedByToken`). |
+| **27**| `model` | [`SecurityAuditLog.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/model/SecurityAuditLog.java) | JPA entity for immutable audit logs (`eventType`, `username`, `status`, `details`, `timestamp`). |
+| **28**| `model` | [`User.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/model/User.java) | JPA entity for users (`username`, `password`, `role`, `failedAttempts`, `lockTime`, `mfaEnabled`, `mfaSecret`). |
+| **29**| `ratelimit` | [`RateLimitingFilter.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingFilter.java) | Servlet filter evaluating client IP token buckets, returning HTTP 429 on exhaustion. |
+| **30**| `ratelimit` | [`RateLimitingService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/ratelimit/RateLimitingService.java) | Caffeine-backed in-memory Bucket4j token bucket provider. |
+| **31**| `repository`| [`RefreshTokenRepository.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/repository/RefreshTokenRepository.java) | Spring Data JPA repository for refresh token persistence. |
+| **32**| `repository`| [`SecurityAuditLogRepository.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/repository/SecurityAuditLogRepository.java) | Spring Data JPA repository for audit history querying. |
+| **33**| `repository`| [`UserRepository.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/repository/UserRepository.java) | Spring Data JPA repository for user credentials and lockout state. |
+| **34**| `service` | [`RefreshTokenService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/service/RefreshTokenService.java) | Implements Refresh Token Rotation and Automatic Replay Breach Detection. |
+| **35**| `service` | [`UserService.java`](file:///D:/MicroServices_Study/auth-shield-service/src/main/java/com/example/jwtservicedemo/service/UserService.java) | Manages BCrypt validation, account lockout rules, user registration, and MFA state. |
 
 ---
 

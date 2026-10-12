@@ -27,7 +27,7 @@ public class TotpService {
     private static final int TIME_STEP_SECONDS = 30;
     private static final int DIGITS = 6;
     private static final int MOD_DIVISOR = 1_000_000;
-    private static final String ISSUER = "jwt-service-demo";
+    private static final String ISSUER = "AuthShield";
 
     private final SecureRandom secureRandom = new SecureRandom();
 
