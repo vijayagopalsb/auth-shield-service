@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.example</groupId>
-    <artifactId>jwt-service-demo</artifactId>
+    <artifactId>auth-shield-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>jwt-service-demo</name>
-    <description>JWT Service Demo with Spring Boot and Spring Security</description>
+    <name>auth-shield-service</name>
+    <description>Production-Grade Zero-Trust IAM &amp; Security Microservice</description>
 
     <properties>
         <java.version>21</java.version>

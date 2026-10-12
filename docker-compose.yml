@@ -6,15 +6,15 @@ services:
   # ==============================================================================
   mysql:
     image: mysql:8.4
-    container_name: jwt-mysql
+    container_name: auth-shield-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: jwt_service_db
+      MYSQL_DATABASE: auth_shield_db
     ports:
       - "${MYSQL_HOST_PORT:-3308}:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - auth_shield_mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot || exit 1"]
       interval: 5s
@@ -22,23 +22,24 @@ services:
       retries: 10
       start_period: 15s
     networks:
-      - jwt-network
+      - auth-shield-network
 
   # ==============================================================================
-  # Centralized Identity & JWT Authentication Service
+  # Centralized Identity & Security (AuthShield) Service
   # ==============================================================================
-  jwt-service:
+  auth-shield-service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: jwt-service-demo
+    container_name: auth-shield-service
+    image: auth-shield-service:latest
     restart: unless-stopped
     environment:
       SERVER_PORT: 8443
       SSL_ENABLED: "true"
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: jwt_service_db
+      DB_NAME: auth_shield_db
       DB_USER: root
       DB_PASSWORD: root
       CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:4200"
@@ -48,12 +49,12 @@ services:
       mysql:
         condition: service_healthy
     networks:
-      - jwt-network
+      - auth-shield-network
 
 networks:
-  jwt-network:
+  auth-shield-network:
     driver: bridge
 
 volumes:
-  mysql_data:
+  auth_shield_mysql_data:
     driver: local

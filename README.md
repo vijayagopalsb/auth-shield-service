@@ -1,4 +1,4 @@
-# 🛡️ Enterprise JWT & Multi-Factor Identity Service
+# 🛡️ AuthShield: Enterprise Zero-Trust Identity & Security Microservice
 
 [![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x%20%2F%204.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
@@ -6,7 +6,7 @@
 [![Tests](https://img.shields.io/badge/Tests-82%20Passed-success.svg)](#-automated-testing--verification)
 [![Docker](https://img.shields.io/badge/Docker-Multi--stage%20Compose-blue.svg)](#-docker-compose-production-setup)
 
-A production-grade, centralized **Identity & Access Management (IAM) Microservice** engineered with Java 21, Spring Boot, Spring Security, and MySQL. Modeled after enterprise identity providers (Auth0, Keycloak), it replaces insecure tutorial JWT patterns with asymmetric RSA-2048 cryptography, RFC 7517 JWKS discovery, Token Bucket rate limiting, Refresh Token Rotation (RTR), Account Lockout, SIEM audit event streams, and RFC 6238 Multi-Factor Authentication (MFA / TOTP).
+**AuthShield** is a production-grade, centralized **Zero-Trust Identity & Access Management (IAM) Microservice** engineered with Java 21, Spring Boot, Spring Security, and MySQL. Modeled after enterprise identity providers (Auth0, Keycloak), it replaces insecure tutorial JWT patterns with asymmetric RSA-2048 cryptography, RFC 7517 JWKS discovery, Token Bucket rate limiting, Refresh Token Rotation (RTR), Account Lockout, SIEM audit event streams, and RFC 6238 Multi-Factor Authentication (MFA / TOTP).
 
 ---
 
@@ -126,8 +126,8 @@ docker compose up --build -d
 - **Container Healthcheck:** Uses Spring Boot Actuator (`https://localhost:8443/actuator/health`).
 
 ### Host Port Mapping:
-- **`jwt-service-demo`:** `https://localhost:8443` (Enforces TLS 1.3 encryption).
-- **`jwt-mysql`:** `localhost:3308` (Mapped to 3308 to avoid conflicts with any local MySQL on 3306).
+- **`auth-shield-service`:** `https://localhost:8443` (Enforces TLS 1.3 encryption).
+- **`auth-shield-mysql`:** `localhost:3308` (Mapped to 3308 to avoid conflicts with any local MySQL on 3306).
 
 To stop the containers:
 ```bash
@@ -167,7 +167,7 @@ docker compose down -v
 ## 📮 Testing with Postman (100% Automated)
 
 A complete, pre-configured Postman Collection is included in the repository:
-👉 **[`docs/jwt-service-demo.postman_collection.json`](docs/jwt-service-demo.postman_collection.json)**
+👉 **[`docs/auth-shield-service.postman_collection.json`](docs/auth-shield-service.postman_collection.json)**
 
 ### Postman Testing Features:
 1. **QR Code Visualizer:** Click the **Visualize** tab on the `MFA Setup` response to view and scan the real QR code with Google Authenticator!

@@ -1,7 +1,7 @@
 # 🎓 Enterprise Identity & Security Masterclass Guide
 ### Complete Reference Architecture, Cryptographic Mechanics, Attack Mitigations & Interview Playbook
 
-> **Project:** `jwt-service-demo`  
+> **Project:** `auth-shield-service` (AuthShield)  
 > **Tech Stack:** Java 21, Spring Boot 3.x / 4.x, Spring Security 6, JJWT 0.12.x, Bucket4j, MySQL 8.4, Docker  
 > **Test Suite:** 82 Automated Integration Tests (100% Pass Rate)  
 > **Target Audience:** Junior to Principal Software Engineers, Security Architects, and Technical Interview Candidates
@@ -537,14 +537,14 @@ Here is the complete roster of source files in `src/main/java`:
 
 ### Running the Full Cluster:
 ```bash
-# Launch MySQL 8.4 and jwt-service-demo in background
+# Launch MySQL 8.4 and auth-shield-service in background
 docker compose up --build -d
 
 # Verify container status and healthchecks
 docker compose ps
 
 # Follow real-time application logs
-docker compose logs -f jwt-service
+docker compose logs -f auth-shield-service
 
 # Stop cluster
 docker compose down

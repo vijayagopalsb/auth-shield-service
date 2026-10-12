@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-		"name": "JWT Service Demo - Complete Enterprise Security & MFA Collection",
-		"description": "Complete collection for testing RS256 JWT, Rate Limiting, RTR, Account Lockout, SIEM Audit, and RFC 6238 MFA (TOTP) entirely within Postman.",
+		"name": "AuthShield Service - Complete Enterprise Security & MFA Collection",
+		"description": "Complete collection for testing AuthShield: RS256 JWT, Rate Limiting, RTR, Account Lockout, SIEM Audit, and RFC 6238 MFA (TOTP) entirely within Postman.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
