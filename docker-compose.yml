@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # ==============================================================================
+  # MySQL Database Service
+  # ==============================================================================
+  mysql:
+    image: mysql:8.4
+    container_name: jwt-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: jwt_service_db
+    ports:
+      - "${MYSQL_HOST_PORT:-3308}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -proot || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - jwt-network
+
+  # ==============================================================================
+  # Centralized Identity & JWT Authentication Service
+  # ==============================================================================
+  jwt-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jwt-service-demo
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8443
+      SSL_ENABLED: "true"
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: jwt_service_db
+      DB_USER: root
+      DB_PASSWORD: root
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:4200"
+    ports:
+      - "8443:8443"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - jwt-network
+
+networks:
+  jwt-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

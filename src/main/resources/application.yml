@@ -1,0 +1,55 @@
+server:
+  port: ${SERVER_PORT:8443}
+  ssl:
+    enabled: ${SSL_ENABLED:true}
+    key-store-type: PKCS12
+    key-store: classpath:keystore.p12
+    key-store-password: ${KEYSTORE_PASSWORD:changeit}
+    key-alias: jwt-service
+    enabled-protocols: TLSv1.3
+    ciphers: TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256
+
+spring:
+  application:
+    name: jwt-service-demo
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:jwt_service_db}?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQLDialect
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Rate Limiting Configuration (Token Bucket)
+ratelimit:
+  auth:
+    capacity: 5
+    refill-tokens: 5
+    duration-seconds: 60
+  general:
+    capacity: 30
+    refill-tokens: 30
+    duration-seconds: 60
+
+# CORS Configuration (Environment-driven for frontends)
+cors:
+  allowed-origins:
+    - http://localhost:3000
+    - http://localhost:5173
+    - http://localhost:4200
+

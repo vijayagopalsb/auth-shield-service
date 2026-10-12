@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Maven build artifacts
+target/
+*.jar
+*.war
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Local cache & logs
+.ollamassist/
+*.log
+
+# Documentation and temporary files
+docs/
+scratch/
+SESSION_SUMMARY.md

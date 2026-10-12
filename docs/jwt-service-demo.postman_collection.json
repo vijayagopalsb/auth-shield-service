@@ -1,0 +1,472 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "JWT Service Demo - Complete Enterprise Security & MFA Collection",
+		"description": "Complete collection for testing RS256 JWT, Rate Limiting, RTR, Account Lockout, SIEM Audit, and RFC 6238 MFA (TOTP) entirely within Postman.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "mfa_secret",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "temp_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "totp_code",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Public Endpoints",
+			"item": [
+				{
+					"name": "RFC 7517 JWKS Endpoint",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/.well-known/jwks.json",
+							"host": ["{{baseUrl}}"],
+							"path": [".well-known", "jwks.json"]
+						}
+					}
+				},
+				{
+					"name": "Register New User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"alice\",\n    \"password\": \"SecurePass#2026\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login (Step 1 - Primary Password)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.mfaRequired) {",
+									"    pm.collectionVariables.set('temp_token', res.tempToken);",
+									"    console.log('MFA Required! Saved tempToken to variable.');",
+									"} else if (res.token) {",
+									"    pm.collectionVariables.set('jwt_token', res.token);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    console.log('Direct login success! Saved JWT and Refresh Token.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Multi-Factor Authentication (MFA / TOTP)",
+			"item": [
+				{
+					"name": "Step A: Setup MFA (Generates Secret & QR Code)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.secret) {",
+									"    pm.collectionVariables.set('mfa_secret', res.secret);",
+									"}",
+									"",
+									"// Render QR Code in Postman Visualizer tab",
+									"if (res.qrCodeDataUrl) {",
+									"    pm.visualizer.set(`",
+									"        <div style=\"font-family: Arial, sans-serif; text-align: center; padding: 25px; background: #fdfdfd;\">",
+									"            <h2 style=\"color: #2c3e50;\">Scan QR in Google Authenticator</h2>",
+									"            <img src=\"${res.qrCodeDataUrl}\" style=\"border: 3px solid #34495e; border-radius: 8px;\" />",
+									"            <p style=\"margin-top: 15px; font-size: 15px;\"><strong>Secret Key:</strong> <code>${res.secret}</code></p>",
+									"            <p style=\"color: #7f8c8d; font-size: 13px;\">Or tap 'Enter a setup key' in Google Authenticator</p>",
+									"        </div>",
+									"    `);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/mfa/setup",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "mfa", "setup"]
+						}
+					}
+				},
+				{
+					"name": "Step B: Confirm & Enable MFA",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Automatically compute RFC 6238 TOTP using Postman's built-in CryptoJS",
+									"const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';",
+									"function base32tohex(base32) {",
+									"    let bits = '';",
+									"    let hex = '';",
+									"    let clean = base32.toUpperCase().replace(/[^A-Z2-7]/g, '');",
+									"    for (let i = 0; i < clean.length; i++) {",
+									"        let val = base32chars.indexOf(clean.charAt(i));",
+									"        bits += val.toString(2).padStart(5, '0');",
+									"    }",
+									"    for (let i = 0; i + 4 <= bits.length; i += 4) {",
+									"        let chunk = bits.substr(i, 4);",
+									"        hex = hex + parseInt(chunk, 2).toString(16);",
+									"    }",
+									"    return hex;",
+									"}",
+									"",
+									"const secret = pm.collectionVariables.get('mfa_secret');",
+									"if (secret) {",
+									"    const epoch = Math.floor(new Date().getTime() / 1000.0);",
+									"    const time = Math.floor(epoch / 30).toString(16).padStart(16, '0');",
+									"    const keyWordArray = CryptoJS.enc.Hex.parse(base32tohex(secret));",
+									"    const timeWordArray = CryptoJS.enc.Hex.parse(time);",
+									"    const hmac = CryptoJS.HmacSHA1(timeWordArray, keyWordArray);",
+									"    const hmacHex = hmac.toString(CryptoJS.enc.Hex);",
+									"    const offset = parseInt(hmacHex.substring(hmacHex.length - 1), 16) * 2;",
+									"    const otp = (parseInt(hmacHex.substr(offset, 8), 16) & 0x7fffffff) % 1000000;",
+									"    const totpCode = otp.toString().padStart(6, '0');",
+									"    pm.collectionVariables.set('totp_code', totpCode);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"{{totp_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/mfa/enable",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "mfa", "enable"]
+						}
+					}
+				},
+				{
+					"name": "Step C: Complete Login with MFA (Step 2)",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Automatically compute RFC 6238 TOTP using Postman's built-in CryptoJS",
+									"const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';",
+									"function base32tohex(base32) {",
+									"    let bits = '';",
+									"    let hex = '';",
+									"    let clean = base32.toUpperCase().replace(/[^A-Z2-7]/g, '');",
+									"    for (let i = 0; i < clean.length; i++) {",
+									"        let val = base32chars.indexOf(clean.charAt(i));",
+									"        bits += val.toString(2).padStart(5, '0');",
+									"    }",
+									"    for (let i = 0; i + 4 <= bits.length; i += 4) {",
+									"        let chunk = bits.substr(i, 4);",
+									"        hex = hex + parseInt(chunk, 2).toString(16);",
+									"    }",
+									"    return hex;",
+									"}",
+									"",
+									"const secret = pm.collectionVariables.get('mfa_secret');",
+									"if (secret) {",
+									"    const epoch = Math.floor(new Date().getTime() / 1000.0);",
+									"    const time = Math.floor(epoch / 30).toString(16).padStart(16, '0');",
+									"    const keyWordArray = CryptoJS.enc.Hex.parse(base32tohex(secret));",
+									"    const timeWordArray = CryptoJS.enc.Hex.parse(time);",
+									"    const hmac = CryptoJS.HmacSHA1(timeWordArray, keyWordArray);",
+									"    const hmacHex = hmac.toString(CryptoJS.enc.Hex);",
+									"    const offset = parseInt(hmacHex.substring(hmacHex.length - 1), 16) * 2;",
+									"    const otp = (parseInt(hmacHex.substr(offset, 8), 16) & 0x7fffffff) % 1000000;",
+									"    const totpCode = otp.toString().padStart(6, '0');",
+									"    pm.collectionVariables.set('totp_code', totpCode);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.token) {",
+									"    pm.collectionVariables.set('jwt_token', res.token);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"    console.log('MFA Login Complete! Updated jwt_token.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tempToken\": \"{{temp_token}}\",\n    \"code\": \"{{totp_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/mfa/verify-login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "mfa", "verify-login"]
+						}
+					}
+				},
+				{
+					"name": "Step D: Disable MFA",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';",
+									"function base32tohex(base32) {",
+									"    let bits = '';",
+									"    let hex = '';",
+									"    let clean = base32.toUpperCase().replace(/[^A-Z2-7]/g, '');",
+									"    for (let i = 0; i < clean.length; i++) {",
+									"        let val = base32chars.indexOf(clean.charAt(i));",
+									"        bits += val.toString(2).padStart(5, '0');",
+									"    }",
+									"    for (let i = 0; i + 4 <= bits.length; i += 4) {",
+									"        let chunk = bits.substr(i, 4);",
+									"        hex = hex + parseInt(chunk, 2).toString(16);",
+									"    }",
+									"    return hex;",
+									"}",
+									"",
+									"const secret = pm.collectionVariables.get('mfa_secret');",
+									"if (secret) {",
+									"    const epoch = Math.floor(new Date().getTime() / 1000.0);",
+									"    const time = Math.floor(epoch / 30).toString(16).padStart(16, '0');",
+									"    const keyWordArray = CryptoJS.enc.Hex.parse(base32tohex(secret));",
+									"    const timeWordArray = CryptoJS.enc.Hex.parse(time);",
+									"    const hmac = CryptoJS.HmacSHA1(timeWordArray, keyWordArray);",
+									"    const hmacHex = hmac.toString(CryptoJS.enc.Hex);",
+									"    const offset = parseInt(hmacHex.substring(hmacHex.length - 1), 16) * 2;",
+									"    const otp = (parseInt(hmacHex.substr(offset, 8), 16) & 0x7fffffff) % 1000000;",
+									"    const totpCode = otp.toString().padStart(6, '0');",
+									"    pm.collectionVariables.set('totp_code', totpCode);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"{{totp_code}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/mfa/disable",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "mfa", "disable"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Token Management & Protected APIs",
+			"item": [
+				{
+					"name": "Rotate Refresh Token (RTR)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const res = pm.response.json();",
+									"if (res.token) {",
+									"    pm.collectionVariables.set('jwt_token', res.token);",
+									"    pm.collectionVariables.set('refresh_token', res.refreshToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "refresh"]
+						}
+					}
+				},
+				{
+					"name": "Logout (Blacklist Access Token)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "logout"]
+						}
+					}
+				},
+				{
+					"name": "View Security Audit Logs (Admin Only)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/audit-logs",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "audit-logs"]
+						}
+					}
+				},
+				{
+					"name": "Admin Only Area",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/demo/admin-only",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "demo", "admin-only"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

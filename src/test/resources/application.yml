@@ -1,0 +1,35 @@
+server:
+  ssl:
+    enabled: false
+
+spring:
+  application:
+    name: jwt-service-demo-test
+  datasource:
+    url: jdbc:h2:mem:jwt_test_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+
+# Rate Limiting Configuration (Generous limits for integration test suite)
+ratelimit:
+  auth:
+    capacity: 1000
+    refill-tokens: 1000
+    duration-seconds: 60
+  general:
+    capacity: 1000
+    refill-tokens: 1000
+    duration-seconds: 60
+
+cors:
+  allowed-origins:
+    - http://localhost:3000
+    - http://localhost:5173
+    - http://localhost:4200
+
